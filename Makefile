@@ -20,7 +20,6 @@ LDFLAGS = -Wl,--relax,--section-start=.text=0,-Map=main.map
 all:	neospi.hex
 
 neospi.hex: neospi.c
-	$(CC) $(CFLAGS) -S -o neospi.S neospi.c
 	$(CC) $(CFLAGS) -o neospi.o neospi.c
 	avr-size neospi.o
 	avr-objcopy -j .text -j .data -O ihex neospi.o neospi.hex
@@ -30,3 +29,13 @@ flash: neospi.hex
 
 clean:
 	rm -f *.o *.hex *.S
+
+asm:
+	$(CC) $(CFLAGS) -S -o neospi.S neospi.c
+	avr-as -aghlms=neospi.lst neospi.S
+
+#since we aren't using the stack, or data
+thin:
+	avr-gcc -I. -mmcu=attiny85 -DF_CPU=8000000 -Os -Wall -nostdlib neospi.c -o neospi.o
+	avr-size neospi.o
+	avr-objcopy -j .text -j .data -O ihex neospi.o neospi.hex

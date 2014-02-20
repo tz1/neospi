@@ -5,21 +5,19 @@
 typedef unsigned char u8;
 
 // 2
-u8 ledbuf[500];
+u8 rambuf[500];
 
 #define NPBIT (_BV(3))
 #define SSBIT (_BV(4))
 int main(void)
 {
-    u8 *dp; 
-    DDRB |= NPBIT | _BV(1);   // SPI DO
-    PORTB = 0xff;                 //; set pullups,  DO=H
-    PORTB &= ~NPBIT;
+    DDRB = NPBIT | _BV(1);   // SPI DO
+    PORTB = ~NPBIT;
     USICR = (1 << USIWM0) | (1 << USICS1);  //|(1<<USICS0);
 
+    u8 *dp; 
     for (;;) {
-        USIDR = 0xa5;
-        dp = ledbuf;
+        dp = rambuf;
 // wait for SS
         while( PINB & SSBIT );
         do {
@@ -30,27 +28,26 @@ int main(void)
             *dp++ = USIDR;
         }
         while( !(PINB & SSBIT) );
-        u8 bithi = PORTB | NPBIT;
-        u8 bitlo = bithi & ~NPBIT;
-        dp = ledbuf;
-        unsigned short datlen = *dp++;
-        datlen |= *dp++ << 8;
+        dp = rambuf+2;
+        u8 bithi = 0xff;
+        u8 bitlo = ~NPBIT;
+        u8 *ep = dp + *((unsigned short *)rambuf);
         do {
             u8 tmp = *dp++;
             asm volatile (" ldi  %0,8\n"
                 "loop%=:\n"
                 " out  %2,%3\n"
-                " nop\n\t"
+                " nop\n"
                 " sbrs %1,7\n"
                 " out  %2,%4\n"
                 " lsl  %1\n"
-                " nop\n\t"
+                " nop\n"
                 " out  %2,%4\n"
                 " dec  %0\n"
-                " brne loop%=\n\t":"=&d" (tmp)
-                :"r"(tmp), "I"(_SFR_IO_ADDR(PORTB)), "r"(bithi), "r"(bitlo)
+                " brne loop%=\n"
+                :"=&d" (tmp):"r"(tmp), "I"(_SFR_IO_ADDR(PORTB)), "r"(bithi), "r"(bitlo)
             );
-        } while (dp != ledbuf + datlen+2);
+        } while (dp != ep); 
         //_delay_us(50);
     }
 }
