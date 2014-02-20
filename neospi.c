@@ -5,10 +5,7 @@
 typedef unsigned char u8;
 
 // 2
-struct {
-    unsigned short datlen;
-    u8 ledbuf[480];
-} ramimg;
+u8 ledbuf[500];
 
 #define NPBIT (_BV(3))
 #define SSBIT (_BV(4))
@@ -22,23 +19,22 @@ int main(void)
 
     for (;;) {
         USIDR = 0xa5;
-        ramimg.datlen = 0xffff;
-        dp = (u8*) &ramimg;
-        unsigned short tmp = 0;
+        dp = ledbuf;
 // wait for SS
         while( PINB & SSBIT );
         do {
-            USIDR = tmp;
+            USIDR = *dp;
             USISR = (1 << USIOIF);
             while ( !(USISR & (1 << USIOIF)) && !(PINB & SSBIT) ) 
                 ;
             *dp++ = USIDR;
         }
-        while( ++tmp < 2+ramimg.datlen && !(PINB & SSBIT) );
-
+        while( !(PINB & SSBIT) );
         u8 bithi = PORTB | NPBIT;
         u8 bitlo = bithi & ~NPBIT;
-        dp = ramimg.ledbuf;
+        dp = ledbuf;
+        unsigned short datlen = *dp++;
+        datlen |= *dp++ << 8;
         do {
             u8 tmp = *dp++;
             asm volatile (" ldi  %0,8\n"
@@ -54,7 +50,7 @@ int main(void)
                 " brne loop%=\n\t":"=&d" (tmp)
                 :"r"(tmp), "I"(_SFR_IO_ADDR(PORTB)), "r"(bithi), "r"(bitlo)
             );
-        } while (dp != ramimg.ledbuf + ramimg.datlen);
+        } while (dp != ledbuf + datlen+2);
         //_delay_us(50);
     }
 }
