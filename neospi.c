@@ -5,26 +5,40 @@
 typedef unsigned char u8;
 
 // 2
-unsigned short volatile datlen = 12;
-// 432
-u8 ledbuf[144 * 3] = {
-    16, 0, 0,
-    0, 16, 0,
-    0, 0, 16,
-    8, 8, 8
-};
+struct {
+    unsigned short datlen;
+    u8 ledbuf[480];
+} ramimg;
 
-#define PORTBIT (_BV(3))
+#define NPBIT (_BV(3))
+#define SSBIT (_BV(4))
 int main(void)
 {
-    DDRB |= PORTBIT | _BV(1);   // SPI DO
-    PORTB |= 7;                 //; set pullups,  DO=H
-    PORTB &= ~PORTBIT;
-    _delay_us(50);
+    u8 *dp; 
+    DDRB |= NPBIT | _BV(1);   // SPI DO
+    PORTB = 0xff;                 //; set pullups,  DO=H
+    PORTB &= ~NPBIT;
+    USICR = (1 << USIWM0) | (1 << USICS1);  //|(1<<USICS0);
+
     for (;;) {
-        u8 bithi = PORTB | PORTBIT;
-        u8 bitlo = bithi & ~PORTBIT;
-        u8 *dp = ledbuf;
+        USIDR = 0xa5;
+        ramimg.datlen = 0xffff;
+        dp = (u8*) &ramimg;
+        unsigned short tmp = 0;
+// wait for SS
+        while( PINB & SSBIT );
+        do {
+            USIDR = tmp;
+            USISR = (1 << USIOIF);
+            while ( !(USISR & (1 << USIOIF)) && !(PINB & SSBIT) ) 
+                ;
+            *dp++ = USIDR;
+        }
+        while( ++tmp < 2+ramimg.datlen && !(PINB & SSBIT) );
+
+        u8 bithi = PORTB | NPBIT;
+        u8 bitlo = bithi & ~NPBIT;
+        dp = ramimg.ledbuf;
         do {
             u8 tmp = *dp++;
             asm volatile (" ldi  %0,8\n"
@@ -40,20 +54,7 @@ int main(void)
                 " brne loop%=\n\t":"=&d" (tmp)
                 :"r"(tmp), "I"(_SFR_IO_ADDR(PORTB)), "r"(bithi), "r"(bitlo)
             );
-        } while (dp != ledbuf + datlen);
-
-        _delay_us(50);
-
-        USICR = (1 << USIWM0) | (1 << USICS1);  //|(1<<USICS0);
-
-        dp = ledbuf;
-        u8 tmp = 12;
-        while (tmp--) {
-            USIDR = tmp;
-            USISR = (1 << USIOIF);
-            // wait for SS, not for now...
-            while (!(USISR & (1 << USIOIF)));
-            *dp++ = USIDR;
-        }
+        } while (dp != ramimg.ledbuf + ramimg.datlen);
+        //_delay_us(50);
     }
 }

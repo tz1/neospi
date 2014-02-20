@@ -1,11 +1,14 @@
 #include <SPI.h>
 unsigned x = 0;
+#define SELPIN 2
 void setup()
 {
+  pinMode(SELPIN,OUTPUT);
+  digitalWrite(SELPIN,1);
     Serial.begin(115200);
     SPI.begin();
     SPI.setDataMode(SPI_MODE0);
-    SPI.setClockDivider(SPI_CLOCK_DIV32);
+    SPI.setClockDivider(SPI_CLOCK_DIV16);
     SPI.setBitOrder(MSBFIRST);
 }
 
@@ -14,6 +17,7 @@ void loop()
   byte r,g,b,rr,gr,br;
   x++;
   delay(500);
+  digitalWrite(SELPIN,0);
 
   if( x&1 )
     r = 15;
@@ -27,6 +31,13 @@ void loop()
     b = 15;
   else
     b = 0;
+  
+  gr=SPI.transfer(12);
+  rr=SPI.transfer(0);
+  Serial.print(gr);
+  Serial.print(' ');
+  Serial.print(rr);
+  Serial.print(' ');
   
   gr=SPI.transfer(g);
   rr=SPI.transfer(r);
@@ -68,6 +79,7 @@ void loop()
   Serial.print(' ');
   Serial.print(br);
   Serial.print(' ');
+  digitalWrite(SELPIN,1);
 
   Serial.println(x);
   
